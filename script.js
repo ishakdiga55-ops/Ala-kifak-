@@ -1,67 +1,100 @@
 /* تفاعلات الموقع: اللغة، القائمة، السلة، النموذج، والمعرض. */
-(() => {
+(function () {
   "use strict";
 
-  const \$ = (selector, context = document) => context.querySelector(selector);
-  const \$\$ = (selector, context = document) => Array.from(context.querySelectorAll(selector));
-  const storage = {
-    get(key, fallback) {
-      try { return localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
+  // ===== عرض أي خطأ على الشاشة =====
+  window.addEventListener("error", function (e) {
+    var box = document.getElementById("errorBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.textContent += "\u274C " + (e.message || e) + " \u2014 " + (e.filename || "?") + ":" + (e.lineno || "?") + "\n";
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var box = document.getElementById("errorBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.textContent += "\u274C " + ((e.reason && e.reason.message) || e.reason || e) + "\n";
+  });
+
+  // التأكد من تحميل بيانات الموقع
+  if (typeof translations === "undefined" || typeof menuItems === "undefined") {
+    var box = document.getElementById("errorBox");
+    if (box) {
+      box.style.display = "block";
+      box.textContent = "\u274C لم يتم تحميل ملف data.js. تأكد من وجود data.js في نفس المجلد قبل script.js.";
+    }
+    return;
+  }
+
+  // تفعيل وضع js (لإظهار عناصر reveal بأنيميشن)
+  document.documentElement.classList.add("js-enabled");
+
+  var $ = function (sel, ctx) { return (ctx || document).querySelector(sel); };
+  var $$ = function (sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); };
+
+  var storage = {
+    get: function (key, fallback) {
+      try { var v = localStorage.getItem(key); return v !== null ? v : fallback; } catch (e) { return fallback; }
     },
-    set(key, value) {
-      try { localStorage.setItem(key, value); } catch (_) { /* التخزين اختياري */ }
+    set: function (key, value) {
+      try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
     }
   };
 
-  let language = storage.get("yasmine-language", "ar");
-  let activeFilter = "all";
-  let cart = [];
+  var language = storage.get("yasmine-language", "ar");
+  if (!translations[language]) language = "ar";
+  var activeFilter = "all";
+  var cart = [];
   try {
-    const savedCart = JSON.parse(storage.get("yasmine-cart", "[]"));
-    cart = Array.isArray(savedCart) ? savedCart.filter(item =>
-      item && menuItems.some(product => product.id === item.id) &&
-      Number.isInteger(item.quantity) && item.quantity > 0
-    ) : [];
-  } catch (_) {
-    cart = [];
+    var savedCart = JSON.parse(storage.get("yasmine-cart", "[]"));
+    cart = Array.isArray(savedCart) ? savedCart.filter(function (item) {
+      return item && typeof item.id === "string" &&
+        menuItems.some(function (p) { return p.id === item.id; }) &&
+        Number.isInteger(item.quantity) && item.quantity > 0;
+    }) : [];
+  } catch (e) { cart = []; }
+
+  function t(key) {
+    var dict = translations[language] || translations.ar;
+    return dict[key] || key;
   }
 
-  const t = key => (translations[language] && translations[language][key]) || key;
-  const formatPrice = price => \`\${new Intl.NumberFormat(language === "ar" ? "ar-DZ" : "en-DZ", {
-    maximumFractionDigits: 0
-  }).format(price)} \${language === "ar" ? "دج" : "DZD"}\`;
+  function formatPrice(price) {
+    var num;
+    try {
+      num = new Intl.NumberFormat(language === "ar" ? "ar-DZ" : "en-DZ", { maximumFractionDigits: 0 }).format(price);
+    } catch (e) {
+      num = String(price);
+    }
+    return num + " " + (language === "ar" ? "\u062F\u062C" : "DZD");
+  }
 
+  function escapeHTML(value) {
+    return String(value).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  // ===== تطبيق الترجمات =====
   function applyTranslations() {
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
     document.title = t("pageTitle");
 
-    \$\$("[data-i18n]").forEach(element => {
-      element.innerHTML = t(element.dataset.i18n);
-    });
-    $$("[data-i18n-placeholder]").forEach(element => {
-      element.placeholder = t(element.dataset.i18nPlaceholder);
-    });
-    $$("[data-i18n-aria]").forEach(element => {
-      element.setAttribute("aria-label", t(element.dataset.i18nAria));
-    });
-    $$("[data-i18n-alt]").forEach(element => {
-      element.alt = t(element.dataset.i18nAlt);
-    });
-    $$("[data-i18n-title]").forEach(element => {
-      element.title = t(element.dataset.i18nTitle);
-    });
-    $$("[data-i18n-content]").forEach(element => {
-      element.content = t(element.dataset.i18nContent);
+    $$("[data-i18n]").forEach(function (el) { el.innerHTML = t(el.getAttribute("data-i18n")); });
+    $$("[data-i18n-placeholder]").forEach(function (el) { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
+    $$("[data-i18n-aria]").forEach(function (el) { el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria"))); });
+    $$("[data-i18n-alt]").forEach(function (el) { el.alt = t(el.getAttribute("data-i18n-alt")); });
+    $$("[data-i18n-title]").forEach(function (el) { el.title = t(el.getAttribute("data-i18n-title")); });
+    $$("[data-i18n-content]").forEach(function (el) { el.content = t(el.getAttribute("data-i18n-content")); });
+
+    $$(".language-switch__button").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === language));
     });
 
-    $$(".language-switch\_\_button").forEach(button => {
-      button.setAttribute("aria-pressed", String(button.dataset.lang === language));
-    });
-
-    const menuToggle = \$("#menuToggle");
-    if (menuToggle) {
-      menuToggle.setAttribute("aria-label", t(menuToggle.getAttribute("aria-expanded") === "true" ? "menuClose" : "menuOpen"));
+    var toggle = $("#menuToggle");
+    if (toggle) {
+      toggle.setAttribute("aria-label", t(toggle.getAttribute("aria-expanded") === "true" ? "menuClose" : "menuOpen"));
     }
 
     renderMenu(activeFilter);
@@ -70,68 +103,80 @@
     updateThemeButton();
   }
 
-  function renderMenu(filter = "all") {
-    const grid = \$("#menuGrid");
+  // ===== المنيو =====
+  function renderMenu(filter) {
+    filter = filter || "all";
+    var grid = $("#menuGrid");
     if (!grid) return;
-    const products = menuItems.filter(item => filter === "all" || item.category === filter);
-    grid.innerHTML = products.map(item => \`
-      <article class="menu-card reveal">
-        <div class="menu-card\_\_image-wrap">
-          <img class="menu-card\_\_image" src="\${item.image}" alt="\${escapeHTML(t(item.nameKey))}" loading="lazy" width="700" height="440">
-          \${item.badge ? \`<span class="menu-card\_\_badge">\${escapeHTML(t(item.badge === "popular" ? "badgePopular" : "badgeNew"))}</span>\` : ""}
-        </div>
-        <div class="menu-card__body">
-          <h3 class="menu-card\_\_title">\${escapeHTML(t(item.nameKey))}</h3>
-          <p class="menu-card\_\_description">\${escapeHTML(t(item.descriptionKey))}</p>
-          <div class="menu-card\_\_bottom">
-            <span class="menu-card\_\_price">\${formatPrice(item.price)}</span>
-            <button class="btn menu-card\_\_add" type="button" data-add="\${item.id}">\${escapeHTML(t("addToCart"))}</button>
-          </div>
-        </div>
-      </article>
-    \`).join("");
+    var products = menuItems.filter(function (item) { return filter === "all" || item.category === filter; });
+    var html = "";
+    products.forEach(function (item) {
+      var badge = item.badge ? '<span class="menu-card__badge">' + escapeHTML(t(item.badge === "popular" ? "badgePopular" : "badgeNew")) + "</span>" : "";
+      html += '<article class="menu-card reveal">'
+        + '<div class="menu-card__image-wrap">'
+        + '<img class="menu-card__image" src="' + item.image + '" alt="' + escapeHTML(t(item.nameKey)) + '" loading="lazy" width="700" height="440">'
+        + badge
+        + '</div>'
+        + '<div class="menu-card__body">'
+        + '<h3 class="menu-card__title">' + escapeHTML(t(item.nameKey)) + '</h3>'
+        + '<p class="menu-card__description">' + escapeHTML(t(item.descriptionKey)) + '</p>'
+        + '<div class="menu-card__bottom">'
+        + '<span class="menu-card__price">' + formatPrice(item.price) + '</span>'
+        + '<button class="btn menu-card__add" type="button" data-add="' + item.id + '">' + escapeHTML(t("addToCart")) + '</button>'
+        + '</div></div></article>';
+    });
+    grid.innerHTML = html;
     observeReveals();
   }
 
+  // ===== آراء العملاء =====
   function renderTestimonials() {
-    const grid = \$("#testimonialGrid");
+    var grid = $("#testimonialGrid");
     if (!grid) return;
-    grid.innerHTML = testimonials.map(item => \`
-      <article class="testimonial-card reveal">
-        <div class="testimonial-card\_\_stars" aria-label="5 out of 5 stars">★★★★★</div>
-        <p class="testimonial-card\_\_quote">“\${escapeHTML(t(item.quoteKey))}”</p>
-        <p class="testimonial-card\_\_name">\${escapeHTML(t(item.nameKey))}</p>
-      </article>
-    \`).join("");
+    var html = "";
+    testimonials.forEach(function (item) {
+      html += '<article class="testimonial-card reveal">'
+        + '<div class="testimonial-card__stars" aria-label="5 out of 5 stars">\u2605\u2605\u2605\u2605\u2605</div>'
+        + '<p class="testimonial-card__quote">\u201C' + escapeHTML(t(item.quoteKey)) + '\u201D</p>'
+        + '<p class="testimonial-card__name">' + escapeHTML(t(item.nameKey)) + '</p>'
+        + '</article>';
+    });
+    grid.innerHTML = html;
     observeReveals();
   }
 
+  // ===== السلة =====
   function renderCart() {
-    const list = \$("#cartList");
-    if (!list) return;
-    const quantity = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const total = cart.reduce((sum, entry) => {
-      const product = menuItems.find(item => item.id === entry.id);
-      return sum + (product ? product.price * entry.quantity : 0);
-    }, 0);
+    var list = $("#cartList");
+    var countEl = $("#cartCount");
+    var totalEl = $("#cartTotal");
+    if (!list || !countEl || !totalEl) return;
 
-    \$("#cartCount").textContent = String(quantity);
-    \$("#cartTotal").textContent = formatPrice(total);
+    var count = cart.reduce(function (s, i) { return s + i.quantity; }, 0);
+    var total = cart.reduce(function (sum, entry) {
+      var p = menuItems.find(function (x) { return x.id === entry.id; });
+      return sum + (p ? p.price * entry.quantity : 0);
+    }, 0);
+    countEl.textContent = String(count);
+    totalEl.textContent = formatPrice(total);
+
     if (!cart.length) {
-      list.innerHTML = `<p class="cart-empty">${escapeHTML(t("cartEmpty"))}</p>`;
+      list.innerHTML = '<p class="cart-empty">' + escapeHTML(t("cartEmpty")) + "</p>";
       return;
     }
-    list.innerHTML = cart.map(entry => {
-      const product = menuItems.find(item => item.id === entry.id);
-      if (!product) return "";
-      return \`<div class="cart-item">
-        <div>
-          <div class="cart-item\_\_name">\${escapeHTML(t(product.nameKey))}</div>
-          <div class="cart-item\_\_detail">\${entry.quantity} × \${formatPrice(product.price)}</div>
-        </div>
-        <button class="cart-item\_\_remove" type="button" data-remove="\${product.id}">\${escapeHTML(t("cartRemove"))}</button>
-      </div>\`;
-    }).join("");
+    var html = "";
+    cart.forEach(function (entry) {
+      var product = menuItems.find(function (x) { return x.id === entry.id; });
+      if (!product) return;
+      html += '<div class="cart-item">'
+        + '<div>'
+        + '<div class="cart-item__name">' + escapeHTML(t(product.nameKey)) + '</div>'
+        + '<div class="cart-item__detail">' + entry.quantity + ' \u00D7 ' + formatPrice(product.price) + '</div>'
+        + '</div>'
+        + '<button class="cart-item__remove" type="button" data-remove="' + product.id + '">' + escapeHTML(t("cartRemove")) + '</button>'
+        + '</div>';
+    });
+    list.innerHTML = html;
   }
 
   function persistCart() {
@@ -140,48 +185,40 @@
   }
 
   function addToCart(id) {
-    const product = menuItems.find(item => item.id === id);
+    var product = menuItems.find(function (p) { return p.id === id; });
     if (!product) return;
-    const existing = cart.find(item => item.id === id);
+    var existing = cart.find(function (i) { return i.id === id; });
     if (existing) existing.quantity += 1;
-    else cart.push({ id, quantity: 1 });
+    else cart.push({ id: id, quantity: 1 });
     persistCart();
     showToast(t("itemAdded"));
   }
 
-  function escapeHTML(value) {
-    return String(value).replace(/[&<>"']/g, character => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-    })[character]);
-  }
-
-  let toastTimer;
+  var toastTimer;
   function showToast(message) {
-    const toast = \$("#toast");
+    var toast = $("#toast");
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.add("is-visible");
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2200);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove("is-visible"); }, 2200);
   }
 
   function openCart() {
-    \$("#cartPanel").classList.add("is-open");
-    \$("#cartPanel").setAttribute("aria-hidden", "false");
-    \$("#overlay").classList.add("is-visible");
-    \$("#overlay").setAttribute("aria-hidden", "false");
-    \$("#cartClose").focus();
+    var panel = $("#cartPanel"), overlay = $("#overlay"), close = $("#cartClose");
+    if (panel) { panel.classList.add("is-open"); panel.setAttribute("aria-hidden", "false"); }
+    if (overlay) { overlay.classList.add("is-visible"); overlay.setAttribute("aria-hidden", "false"); }
+    if (close) close.focus();
   }
-
   function closeCart() {
-    \$("#cartPanel").classList.remove("is-open");
-    \$("#cartPanel").setAttribute("aria-hidden", "true");
-    \$("#overlay").classList.remove("is-visible");
-    \$("#overlay").setAttribute("aria-hidden", "true");
+    var panel = $("#cartPanel"), overlay = $("#overlay");
+    if (panel) { panel.classList.remove("is-open"); panel.setAttribute("aria-hidden", "true"); }
+    if (overlay) { overlay.classList.remove("is-visible"); overlay.setAttribute("aria-hidden", "true"); }
   }
 
   function updateThemeButton() {
-    const isDark = document.documentElement.dataset.theme === "dark";
-    const button = \$("#themeToggle");
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    var button = $("#themeToggle");
     if (!button) return;
     button.setAttribute("aria-label", t(isDark ? "lightMode" : "darkMode"));
     button.innerHTML = isDark
@@ -189,192 +226,249 @@
       : '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5 8.5 8.5 0 1 0 20.5 14.3Z"/></svg>';
   }
 
+  // ===== Reveal (ظهور عند التمرير) =====
+  var revealObserver = null;
   function observeReveals() {
     if (!("IntersectionObserver" in window)) {
-      \$\$(".reveal").forEach(element => element.classList.add("is-visible"));
+      $$(".reveal").forEach(function (el) { el.classList.add("is-visible"); });
       return;
     }
-    if (!window.revealObserver) {
-      window.revealObserver = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
+    if (!revealObserver) {
+      revealObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
           if (entry.isIntersecting) {
             entry.target.classList.add("is-visible");
-            window.revealObserver.unobserve(entry.target);
+            revealObserver.unobserve(entry.target);
           }
         });
       }, { threshold: 0.12 });
     }
-    \$\$(".reveal:not(.is-visible)").forEach(element => window.revealObserver.observe(element));
+    $$(".reveal:not(.is-visible)").forEach(function (el) { revealObserver.observe(el); });
   }
 
+  // ===== Scroll Spy =====
   function initScrollSpy() {
     if (!("IntersectionObserver" in window)) return;
-    const links = \$\$(".nav\_\_link");
-    const sections = links.map(link => \$(link.getAttribute("href"))).filter(Boolean);
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
+    var links = $$(".nav__link");
+    var sections = links.map(function (l) {
+      var href = l.getAttribute("href");
+      return href && href.charAt(0) === "#" ? document.getElementById(href.slice(1)) : null;
+    }).filter(Boolean);
+    if (!sections.length) return;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        links.forEach(link => {
-          const active = link.getAttribute("href") === `#${entry.target.id}`;
+        links.forEach(function (link) {
+          var active = link.getAttribute("href") === "#" + entry.target.id;
           link.classList.toggle("is-active", active);
           if (active) link.setAttribute("aria-current", "location");
           else link.removeAttribute("aria-current");
         });
       });
     }, { rootMargin: "-35% 0px -55% 0px" });
-    sections.forEach(section => observer.observe(section));
+    sections.forEach(function (s) { observer.observe(s); });
   }
 
   function updateScrollUI() {
-    const scrollTop = window.scrollY;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    \$("#readingProgress").style.width = `${maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0}%`;
-    \$("#backTop").classList.toggle("is-visible", scrollTop > 450);
+    var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    var progress = $("#readingProgress");
+    if (progress) progress.style.width = (maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0) + "%";
+    var backTop = $("#backTop");
+    if (backTop) backTop.classList.toggle("is-visible", scrollTop > 450);
   }
 
-  function setLanguage(nextLanguage) {
-    if (!translations[nextLanguage]) return;
-    language = nextLanguage;
+  function setLanguage(next) {
+    if (!translations[next]) return;
+    language = next;
     storage.set("yasmine-language", language);
     applyTranslations();
   }
 
+  // ===== التحقق من النموذج =====
   function validateForm(form) {
-    const fields = [
-      { input: \$("#customerName"), error: \$("#nameError"), key: "errorName", valid: value => value.trim().length >= 2 },
-      { input: \$("#customerPhone"), error: \$("#phoneError"), key: "errorPhone", valid: value => /^\\+?[\d\s()-]{8,20}\$/.test(value.trim()) },
-      { input: \$("#requestDate"), error: \$("#dateError"), key: "errorDate", valid: value => Boolean(value) && value >= new Date().toISOString().slice(0, 10) },
-      { input: \$("#requestTime"), error: \$("#timeError"), key: "errorTime", valid: value => Boolean(value) },
-      { input: \$("#guestCount"), error: \$("#guestsError"), key: "errorGuests", valid: value => Boolean(value) }
+    var today = new Date().toISOString().slice(0, 10);
+    var checks = [
+      { input: $("#customerName"), error: $("#nameError"), key: "errorName",
+        valid: function (v) { return v.trim().length >= 2; } },
+      { input: $("#customerPhone"), error: $("#phoneError"), key: "errorPhone",
+        valid: function (v) { return /^\+?[\d\s()\-]{8,20}$/.test(v.trim()); } },
+      { input: $("#requestDate"), error: $("#dateError"), key: "errorDate",
+        valid: function (v) { return Boolean(v) && v >= today; } },
+      { input: $("#requestTime"), error: $("#timeError"), key: "errorTime",
+        valid: function (v) { return Boolean(v); } },
+      { input: $("#guestCount"), error: $("#guestsError"), key: "errorGuests",
+        valid: function (v) { return Boolean(v); } }
     ];
-    let valid = true;
-    fields.forEach(field => {
-      const fieldValid = field.valid(field.input.value);
-      field.input.setAttribute("aria-invalid", String(!fieldValid));
-      field.error.textContent = fieldValid ? "" : t(field.key);
-      if (!fieldValid) valid = false;
+    var valid = true;
+    checks.forEach(function (c) {
+      if (!c.input) return;
+      var ok = c.valid(c.input.value);
+      c.input.setAttribute("aria-invalid", String(!ok));
+      if (c.error) c.error.textContent = ok ? "" : t(c.key);
+      if (!ok) valid = false;
     });
     form.setAttribute("data-valid", String(valid));
     return valid;
   }
 
+  // ===== التهيئة =====
   function init() {
-    const savedTheme = storage.get("yasmine-theme", "light");
-    if (savedTheme === "dark") document.documentElement.dataset.theme = "dark";
+    var savedTheme = storage.get("yasmine-theme", "light");
+    if (savedTheme === "dark") document.documentElement.setAttribute("data-theme", "dark");
 
     applyTranslations();
     observeReveals();
     initScrollSpy();
     updateScrollUI();
 
-    document.addEventListener("click", event => {
-      const languageButton = event.target.closest("[data-lang]");
-      if (languageButton) setLanguage(languageButton.dataset.lang);
+    // شبكة الأمان: بعد ثانيتين، أظهر أي عنصر لم يُكتشف
+    setTimeout(function () {
+      $$(".reveal:not(.is-visible)").forEach(function (el) {
+        var rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight) el.classList.add("is-visible");
+      });
+    }, 800);
 
-      const filterButton = event.target.closest("[data-filter]");
-      if (filterButton) {
-        activeFilter = filterButton.dataset.filter;
-        \$\$(".filter-btn").forEach(button => button.classList.toggle("is-active", button === filterButton));
+    // أحداث النقر العامة
+    document.addEventListener("click", function (event) {
+      var langBtn = event.target.closest("[data-lang]");
+      if (langBtn) setLanguage(langBtn.getAttribute("data-lang"));
+
+      var filterBtn = event.target.closest("[data-filter]");
+      if (filterBtn) {
+        activeFilter = filterBtn.getAttribute("data-filter");
+        $$(".filter-btn").forEach(function (b) {
+          b.classList.toggle("is-active", b === filterBtn);
+        });
         renderMenu(activeFilter);
       }
 
-      const addButton = event.target.closest("[data-add]");
-      if (addButton) addToCart(addButton.dataset.add);
+      var addBtn = event.target.closest("[data-add]");
+      if (addBtn) addToCart(addBtn.getAttribute("data-add"));
 
-      const removeButton = event.target.closest("[data-remove]");
-      if (removeButton) {
-        cart = cart.filter(item => item.id !== removeButton.dataset.remove);
+      var removeBtn = event.target.closest("[data-remove]");
+      if (removeBtn) {
+        cart = cart.filter(function (i) { return i.id !== removeBtn.getAttribute("data-remove"); });
         persistCart();
       }
 
-      const navLink = event.target.closest("#siteNav a");
+      var navLink = event.target.closest("#siteNav a");
       if (navLink) {
-        \$("#siteNav").classList.remove("is-open");
-        \$("#menuToggle").setAttribute("aria-expanded", "false");
-        \$("#menuToggle").setAttribute("aria-label", t("menuOpen"));
+        var navEl = $("#siteNav"), toggleEl = $("#menuToggle");
+        if (navEl) navEl.classList.remove("is-open");
+        if (toggleEl) toggleEl.setAttribute("aria-expanded", "false");
       }
 
-      const galleryButton = event.target.closest("[data-lightbox]");
-      if (galleryButton) {
-        const image = \$("img", galleryButton);
-        \$("#lightboxImage").src = image.src;
-        \$("#lightboxImage").alt = image.alt;
-        \$("#lightbox").classList.add("is-open");
-        \$("#lightboxClose").focus();
-      }
-    });
-
-    \$("#themeToggle").addEventListener("click", () => {
-      const isDark = document.documentElement.dataset.theme !== "dark";
-      document.documentElement.dataset.theme = isDark ? "dark" : "light";
-      storage.set("yasmine-theme", isDark ? "dark" : "light");
-      updateThemeButton();
-    });
-
-    \$("#menuToggle").addEventListener("click", event => {
-      const expanded = event.currentTarget.getAttribute("aria-expanded") !== "true";
-      \$("#siteNav").classList.toggle("is-open", expanded);
-      event.currentTarget.setAttribute("aria-expanded", String(expanded));
-      event.currentTarget.setAttribute("aria-label", t(expanded ? "menuClose" : "menuOpen"));
-    });
-
-    \$("#cartToggle").addEventListener("click", openCart);
-    \$("#cartClose").addEventListener("click", closeCart);
-    \$("#overlay").addEventListener("click", closeCart);
-    \$("#cartCheckout").addEventListener("click", closeCart);
-
-    \$("#backTop").addEventListener("click", () => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-
-    const lightbox = \$("#lightbox");
-    const closeLightbox = () => lightbox.classList.remove("is-open");
-    \$("#lightboxClose").addEventListener("click", closeLightbox);
-    lightbox.addEventListener("click", event => {
-      if (event.target === lightbox) closeLightbox();
-    });
-    document.addEventListener("keydown", event => {
-      if (event.key === "Escape") {
-        closeLightbox();
-        closeCart();
+      var galleryBtn = event.target.closest("[data-lightbox]");
+      if (galleryBtn) {
+        var img = galleryBtn.querySelector("img");
+        var lightbox = $("#lightbox"), lightImg = $("#lightboxImage"), closeBtn = $("#lightboxClose");
+        if (img && lightbox && lightImg) {
+          lightImg.src = img.src;
+          lightImg.alt = img.alt;
+          lightbox.classList.add("is-open");
+          if (closeBtn) closeBtn.focus();
+        }
       }
     });
 
-    const form = \$("#requestForm");
-    form.addEventListener("input", event => {
-      const field = event.target;
-      if (field.matches("input, select")) {
-        field.removeAttribute("aria-invalid");
-        const error = field.closest(".field")?.querySelector(".field\_\_error");
-        if (error) error.textContent = "";
-      }
-      \$("#formStatus").textContent = "";
-    });
-    form.addEventListener("submit", event => {
-      event.preventDefault();
-      \$("#formStatus").textContent = "";
-      if (!validateForm(form)) {
-        \$("#formStatus").textContent = t("errorForm");
-        const firstInvalid = \$('[aria-invalid="true"]', form);
-        if (firstInvalid) firstInvalid.focus();
-        return;
-      }
-      \$("#formStatus").textContent = t("formSuccess");
-      form.reset();
-      form.querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
+    // زر الوضع الليلي
+    var themeToggle = $("#themeToggle");
+    if (themeToggle) {
+      themeToggle.addEventListener("click", function () {
+        var isDark = document.documentElement.getAttribute("data-theme") !== "dark";
+        document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+        storage.set("yasmine-theme", isDark ? "dark" : "light");
+        updateThemeButton();
+      });
+    }
+
+    // زر القائمة على الجوال
+    var menuToggle = $("#menuToggle");
+    if (menuToggle) {
+      menuToggle.addEventListener("click", function (event) {
+        var expanded = event.currentTarget.getAttribute("aria-expanded") !== "true";
+        var navEl = $("#siteNav");
+        if (navEl) navEl.classList.toggle("is-open", expanded);
+        event.currentTarget.setAttribute("aria-expanded", String(expanded));
+        event.currentTarget.setAttribute("aria-label", t(expanded ? "menuClose" : "menuOpen"));
+      });
+    }
+
+    // السلة
+    var cartToggle = $("#cartToggle"); if (cartToggle) cartToggle.addEventListener("click", openCart);
+    var cartClose = $("#cartClose"); if (cartClose) cartClose.addEventListener("click", closeCart);
+    var overlay = $("#overlay"); if (overlay) overlay.addEventListener("click", closeCart);
+    var cartCheckout = $("#cartCheckout"); if (cartCheckout) cartCheckout.addEventListener("click", closeCart);
+
+    // العودة للأعلى
+    var backTop = $("#backTop");
+    if (backTop) {
+      backTop.addEventListener("click", function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+
+    // Lightbox
+    var lightbox = $("#lightbox");
+    var lightboxClose = $("#lightboxClose");
+    function closeLightbox() { if (lightbox) lightbox.classList.remove("is-open"); }
+    if (lightboxClose) lightboxClose.addEventListener("click", closeLightbox);
+    if (lightbox) {
+      lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
+    }
+
+    // Esc
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { closeLightbox(); closeCart(); }
     });
 
-    let scrollTicking = false;
-    window.addEventListener("scroll", () => {
-      if (scrollTicking) return;
-      scrollTicking = true;
-      window.requestAnimationFrame(() => {
+    // النموذج
+    var form = $("#requestForm");
+    if (form) {
+      form.addEventListener("input", function (event) {
+        var field = event.target;
+        if (field.matches("input, select, textarea")) {
+          field.removeAttribute("aria-invalid");
+          var fieldBox = field.closest(".field");
+          var errorEl = fieldBox ? fieldBox.querySelector(".field__error") : null;
+          if (errorEl) errorEl.textContent = "";
+        }
+        var status = $("#formStatus");
+        if (status) status.textContent = "";
+      });
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var status = $("#formStatus");
+        if (status) status.textContent = "";
+        if (!validateForm(form)) {
+          if (status) status.textContent = t("errorForm");
+          var firstInvalid = form.querySelector('[aria-invalid="true"]');
+          if (firstInvalid) firstInvalid.focus();
+          return;
+        }
+        if (status) status.textContent = t("formSuccess");
+        form.reset();
+        form.querySelectorAll("[aria-invalid]").forEach(function (f) { f.removeAttribute("aria-invalid"); });
+      });
+    }
+
+    // التمرير
+    var ticking = false;
+    window.addEventListener("scroll", function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
         updateScrollUI();
-        scrollTicking = false;
+        ticking = false;
       });
     }, { passive: true });
   }
 
-  document.addEventListener("DOMContentLoaded", init, { once: true });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
 })();
-```*_
