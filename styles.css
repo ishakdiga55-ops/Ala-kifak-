@@ -72,7 +72,7 @@ button { color: inherit; }
 .header {
   position: fixed; z-index: 100; inset: 0 0 auto; min-height: var(--header-height);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);
 }
 .header__inner { min-height: var(--header-height); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--espresso); font-size: 1.1rem; font-weight: 800; white-space: nowrap; }
@@ -139,10 +139,10 @@ button { color: inherit; }
 .offer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .offer-card { min-height: 260px; overflow: hidden; position: relative; padding: 28px; color: white; background-size: cover; background-position: center; }
 .offer-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(34, 24, 18, .82), rgba(34, 24, 18, .22)); }
-.offer-card\_\_content { position: relative; z-index: 1; max-width: 360px; }
+.offer-card__content { position: relative; z-index: 1; max-width: 360px; }
 .offer-card h3 { margin: 0 0 8px; font-size: 1.5rem; }
 .offer-card p { margin: 0 0 15px; }
-.offer-card\_\_price { display: block; margin-bottom: 16px; color: #ffe0b7; font-size: 1.35rem; font-weight: 800; }
+.offer-card__price { display: block; margin-bottom: 16px; color: #ffe0b7; font-size: 1.35rem; font-weight: 800; }
 .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 175px; gap: 12px; }
 .gallery-item { padding: 0; position: relative; overflow: hidden; border: 0; border-radius: 17px; background: var(--surface-2); cursor: zoom-in; }
 .gallery-item:first-child { grid-row: span 2; }
@@ -151,13 +151,13 @@ button { color: inherit; }
 .gallery-item:hover img { transform: scale(1.06); }
 .testimonial-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .testimonial-card { padding: 24px; }
-.testimonial-card\_\_stars { color: #bd8745; letter-spacing: .15em; }
-.testimonial-card\_\_quote { color: var(--muted); }
-.testimonial-card\_\_name { margin: 0; font-weight: 800; }
+.testimonial-card__stars { color: #bd8745; letter-spacing: .15em; }
+.testimonial-card__quote { color: var(--muted); }
+.testimonial-card__name { margin: 0; font-weight: 800; }
 .location-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px; align-items: stretch; }
 .location-card { padding: 28px; border-radius: var(--radius); background: var(--surface-2); }
-.location-card\_\_row { display: flex; gap: 13px; margin-bottom: 19px; }
-.location-card\_\_row .icon { color: var(--green); margin-top: 4px; }
+.location-card__row { display: flex; gap: 13px; margin-bottom: 19px; }
+.location-card__row .icon { color: var(--green); margin-top: 4px; }
 :root[data-theme="dark"] .location-card__row .icon { color: var(--gold); }
 .location-card__row h3 { margin: 0 0 2px; font-size: 1rem; }
 .location-card__row p { margin: 0; color: var(--muted); }
@@ -214,11 +214,15 @@ button { color: inherit; }
 .reading-progress { position: fixed; z-index: 101; top: 0; inset-inline-start: 0; height: 3px; width: 0; background: var(--gold); }
 .toast { position: fixed; z-index: 800; bottom: 22px; inset-inline-start: 50%; transform: translate(-50%, 20px); opacity: 0; visibility: hidden; padding: 11px 18px; border-radius: 999px; color: #fff; background: var(--green); box-shadow: var(--shadow); transition: .2s; }
 .toast.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; }
-.reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+/* Reveal: فقط عندما يشتغل الجافاسكريبت */
+html.js-enabled .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; }
+html.js-enabled .reveal.is-visible { opacity: 1; transform: translateY(0); }
+
 [dir="rtl"] .hero__content { text-align: right; }
 [dir="ltr"] body { font-family: "Poppins", "Cairo", sans-serif; }
 [dir="ltr"] .section__title, [dir="ltr"] .menu-card__title { font-family: "Playfair Display", "Poppins", serif; }
+
 @media (max-width: 1024px) {
   .nav { gap: 12px; }
   .nav__link { font-size: .82rem; }
@@ -266,5 +270,5 @@ button { color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
-  .reveal { opacity: 1; transform: none; }
+  html.js-enabled .reveal { opacity: 1; transform: none; }
 }
