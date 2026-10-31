@@ -75,7 +75,7 @@ const translations = {
   },
   en: {
     pageTitle: "Yasmine Café | A Taste for Your Day",
-    metaDescription: ":Visit Yasmine Café in Algiers for specialty coffee, burgers, pizza, and fresh desserts.",
+    metaDescription: "Visit Yasmine Café in Algiers for specialty coffee, burgers, pizza, and fresh desserts.",
     brand: "Yasmine Café",
     navHome: "Home", navAbout: "Our Story", navMenu: "Menu", navGallery: "Gallery",
     navLocation: "Find Us", navReserve: "Book or Order", orderNow: "Order Now",
@@ -124,7 +124,7 @@ const translations = {
     footerText: "Great coffee, fresh food, and time together.",
     quickLinks: "Quick links", followUs: "Follow us",
     copyright: "© 2026 Yasmine Café. All rights reserved.",
-    backTop "Back to top", cartOpen: "Open shopping cart",
+    backTop: "Back to top", cartOpen: "Open shopping cart",
     menuOpen: "Open menu", menuClose: "Close menu",
     lightMode: "Switch to light mode", darkMode: "Switch to dark mode",
     closeLightbox: "Close image",
